@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceTranscript — AssemblyAI</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0d0d0d;--surface:#161616;--surface2:#1c1c1c;--border:#2a2a2a;
+  --text:#e8e8e8;--muted:#666;--accent:#00ff88;--red:#ff4444;
+  --amber:#ffaa00;--blue:#4488ff;--pink:#ff44aa;--green:#00cc66;
+  --mono:'IBM Plex Mono',monospace;--sans:'DM Sans',sans-serif;
+  --sidebar-w:270px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;min-height:100vh;display:flex;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,0.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.018) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+/* ── Sidebar ── */
+.sidebar{width:var(--sidebar-w);min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;position:relative;z-index:2;}
+.sidebar-header{padding:18px 16px 12px;border-bottom:1px solid var(--border);}
+.sidebar-title{font-family:var(--mono);font-size:10px;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:10px;}
+.sidebar-btns{display:flex;gap:6px;}
+.sidebar-new{flex:1;background:var(--accent);color:#000;border:none;border-radius:6px;padding:8px 0;font-size:13px;font-weight:500;font-family:var(--sans);cursor:pointer;transition:background 0.15s;}
+.sidebar-new:hover{background:#00e67a;}
+.sidebar-analytics-btn{background:transparent;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px;font-family:var(--mono);color:var(--muted);cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.sidebar-analytics-btn:hover,.sidebar-analytics-btn.active{border-color:var(--amber);color:var(--amber);background:rgba(255,170,0,0.06);}
+.history-list{flex:1;overflow-y:auto;padding:8px 0;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.history-empty{padding:24px 16px;font-size:12px;color:var(--muted);text-align:center;line-height:1.6;}
+.history-item{padding:10px 16px;cursor:pointer;border-left:2px solid transparent;transition:all 0.15s;position:relative;}
+.history-item:hover{background:rgba(255,255,255,0.03);}
+.history-item.active{background:rgba(0,255,136,0.06);border-left-color:var(--accent);}
+.hi-date{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:3px;}
+.hi-name{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;}
+.hi-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+.hi-badge{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.06);color:var(--muted);}
+.hi-badge.has-summary{background:rgba(0,255,136,0.1);color:var(--accent);}
+.hi-del{position:absolute;top:10px;right:10px;font-size:11px;color:var(--muted);background:none;border:none;padding:2px 5px;border-radius:3px;opacity:0;cursor:pointer;transition:opacity 0.15s;font-family:var(--mono);}
+.history-item:hover .hi-del{opacity:1;}
+.hi-del:hover{color:var(--red)!important;background:rgba(255,68,68,0.12);}
+.sidebar-footer{padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;}
+.sidebar-footer button{font-size:11px;font-family:var(--mono);padding:3px 8px;color:var(--muted);border-color:var(--border);}
+.sidebar-footer button:hover{color:var(--red);border-color:var(--red);}
+
+/* ── Main ── */
+.main{flex:1;display:flex;flex-direction:column;position:relative;z-index:1;overflow:hidden;}
+.container{max-width:860px;width:100%;margin:0 auto;padding:32px 24px;flex:1;display:flex;flex-direction:column;gap:18px;}
+
+/* ── Header ── */
+.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:18px;border-bottom:1px solid var(--border);}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);}
+.logo-text{font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:0.08em;color:var(--accent);text-transform:uppercase;}
+.logo-badge{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:10px;background:rgba(68,136,255,0.15);border:1px solid rgba(68,136,255,0.3);color:var(--blue);letter-spacing:0.06em;margin-left:4px;}
+.header-right{display:flex;align-items:center;gap:10px;}
+.session-name-input{background:transparent;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:var(--sans);font-size:13px;padding:4px 8px;outline:none;width:180px;transition:all 0.2s;}
+.session-name-input:hover{border-color:var(--border);color:var(--text);}
+.session-name-input:focus{border-color:var(--accent);color:var(--text);}
+.status-chip{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);color:var(--muted);letter-spacing:0.05em;}
+.status-chip.live{border-color:var(--red);color:var(--red);animation:blink 1.2s infinite;}
+.status-chip.connecting{border-color:var(--amber);color:var(--amber);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* ── Key ── */
+.key-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 18px;display:flex;flex-direction:column;gap:8px;}
+.key-section-inner{display:flex;gap:16px;align-items:flex-end;}
+.key-field{flex:1;}
+.key-label{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;}
+.key-row{display:flex;gap:8px;}
+.key-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;padding:7px 12px;outline:none;transition:border-color 0.2s;}
+.key-input:focus{border-color:var(--accent);}
+.key-input.valid{border-color:var(--accent);}
+.claude-key-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;padding:7px 12px;outline:none;transition:border-color 0.2s;}
+.claude-key-input:focus{border-color:var(--accent);}
+.claude-key-input.valid{border-color:var(--accent);}
+.key-hint{font-size:11px;color:var(--muted);}
+.key-hint a{color:var(--accent);text-decoration:none;}
+.key-hint a:hover{text-decoration:underline;}
+
+/* ── Buttons ── */
+button{font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;border-radius:6px;padding:8px 16px;border:1px solid var(--border);background:transparent;color:var(--text);transition:all 0.15s;white-space:nowrap;}
+button:hover{border-color:#555;background:rgba(255,255,255,0.04);}
+button:active{transform:scale(0.97);}
+button:disabled{opacity:0.3;cursor:not-allowed;transform:none;}
+.btn-primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:500;padding:9px 22px;font-size:14px;}
+.btn-primary:hover{background:#00e67a;border-color:#00e67a;}
+.btn-stop{background:var(--red);color:white;border-color:var(--red);padding:9px 22px;font-size:14px;}
+.btn-stop:hover{background:#cc3333;border-color:#cc3333;}
+
+/* ── Controls ── */
+.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+select{background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:13px;padding:8px 12px;cursor:pointer;outline:none;}
+select:focus{border-color:var(--accent);}
+.timer{font-family:var(--mono);font-size:13px;color:var(--red);margin-left:auto;min-width:50px;text-align:right;}
+
+/* ── Viz ── */
+.viz-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;height:52px;display:flex;align-items:center;justify-content:center;position:relative;}
+.viz-idle{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:0.08em;}
+canvas#viz{width:100%;height:100%;display:none;}
+
+/* ── Two-panel layout ── */
+.panels{display:grid;grid-template-columns:1fr;gap:16px;flex:1;}
+.panels.with-summary{grid-template-columns:1fr 1fr;}
+
+/* ── Transcript ── */
+.transcript-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-height:320px;}
+.transcript-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.transcript-label{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;}
+.transcript-actions{display:flex;gap:5px;}
+.transcript-actions button{font-size:11px;padding:3px 9px;font-family:var(--mono);}
+.transcript-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.empty{margin:auto;text-align:center;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:10px;}
+.empty-icon{font-size:32px;opacity:0.2;}
+.empty p{font-size:13px;line-height:1.6;}
+
+/* ── Utterances ── */
+.utterance{display:flex;gap:10px;animation:fadeIn 0.2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.speaker-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:500;flex-shrink:0;margin-top:2px;}
+.sp-0{background:rgba(0,255,136,0.15);color:var(--accent);border:1px solid rgba(0,255,136,0.3);}
+.sp-1{background:rgba(68,136,255,0.15);color:var(--blue);border:1px solid rgba(68,136,255,0.3);}
+.sp-2{background:rgba(255,170,0,0.15);color:var(--amber);border:1px solid rgba(255,170,0,0.3);}
+.sp-3{background:rgba(255,68,170,0.15);color:var(--pink);border:1px solid rgba(255,68,170,0.3);}
+.utt-content{flex:1;}
+.utt-meta{display:flex;align-items:center;gap:8px;margin-bottom:2px;}
+.utt-speaker{font-family:var(--mono);font-size:10px;font-weight:500;}
+.sp-name-0{color:var(--accent)}.sp-name-1{color:var(--blue)}.sp-name-2{color:var(--amber)}.sp-name-3{color:var(--pink)}
+.utt-time{font-family:var(--mono);font-size:10px;color:var(--muted);}
+.utt-text{font-size:14px;line-height:1.7;color:var(--text);}
+.interim-wrap{padding:10px 16px 12px;border-top:1px dashed var(--border);display:none;}
+.interim-text{font-size:14px;color:var(--muted);line-height:1.7;font-style:italic;}
+.interim-cursor{display:inline-block;width:2px;height:13px;background:var(--accent);margin-left:2px;vertical-align:middle;animation:cur 0.8s infinite;}
+@keyframes cur{0%,100%{opacity:1}50%{opacity:0}}
+.stats{display:flex;gap:16px;padding:10px 16px;border-top:1px solid var(--border);background:rgba(0,0,0,0.25);flex-wrap:wrap;}
+.stat{display:flex;flex-direction:column;gap:2px;}
+.stat-val{font-family:var(--mono);font-size:14px;font-weight:500;color:var(--text);}
+.stat-lbl{font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;}
+
+/* ── Summary panel ── */
+.summary-panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-height:320px;}
+.summary-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.summary-label{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;}
+.summary-actions{display:flex;gap:5px;}
+.summary-actions button{font-size:11px;padding:3px 9px;font-family:var(--mono);}
+.summary-body{flex:1;overflow-y:auto;padding:16px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.summary-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--muted);}
+.summary-loading-dots{display:flex;gap:6px;}
+.dot-pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.2s infinite;}
+.dot-pulse:nth-child(2){animation-delay:0.2s;}
+.dot-pulse:nth-child(3){animation-delay:0.4s;}
+@keyframes pulse{0%,100%{opacity:0.3;transform:scale(0.8)}50%{opacity:1;transform:scale(1)}}
+.summary-loading p{font-family:var(--mono);font-size:12px;letter-spacing:0.06em;}
+.s-section{margin-bottom:18px;}
+.s-section:last-child{margin-bottom:0;}
+.s-section-title{font-family:var(--mono);font-size:10px;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.s-section-title::before{content:'';display:block;width:3px;height:12px;border-radius:2px;}
+.s-title-theme::before{background:var(--accent);}
+.s-title-points::before{background:var(--blue);}
+.s-title-decisions::before{background:var(--amber);}
+.s-title-actions::before{background:var(--pink);}
+.s-title-tone::before{background:var(--muted);}
+.s-title-speakers::before{background:var(--green);}
+.s-theme{font-size:14px;color:var(--text);line-height:1.6;font-style:italic;}
+.s-list{display:flex;flex-direction:column;gap:6px;}
+.s-item{display:flex;gap:8px;font-size:13px;line-height:1.5;color:var(--text);}
+.s-bullet{flex-shrink:0;width:5px;height:5px;border-radius:50%;margin-top:6px;}
+.s-bullet-blue{background:var(--blue);}
+.s-bullet-amber{background:var(--amber);}
+.s-bullet-pink{background:var(--pink);}
+.tone-badge{display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid;}
+.tone-positif{border-color:rgba(0,255,136,0.4);color:var(--accent);background:rgba(0,255,136,0.08);}
+.tone-neutre{border-color:rgba(102,102,102,0.4);color:var(--muted);background:rgba(102,102,102,0.08);}
+.tone-tendu{border-color:rgba(255,68,68,0.4);color:var(--red);background:rgba(255,68,68,0.08);}
+.tone-formel{border-color:rgba(68,136,255,0.4);color:var(--blue);background:rgba(68,136,255,0.08);}
+.speaker-bar{margin-bottom:8px;}
+.speaker-bar-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;}
+.speaker-bar-track{height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;}
+.speaker-bar-fill{height:100%;border-radius:2px;transition:width 0.6s ease;}
+.summary-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--muted);}
+.summary-empty-icon{font-size:28px;opacity:0.2;}
+.summary-empty p{font-size:12px;text-align:center;line-height:1.6;}
+.summary-error{padding:16px;font-size:13px;color:#ff8888;background:rgba(255,68,68,0.08);border-radius:6px;margin:16px;}
+
+/* ── Banners ── */
+.readonly-banner{background:rgba(68,136,255,0.08);border:1px solid rgba(68,136,255,0.25);border-radius:6px;padding:7px 14px;font-size:12px;color:var(--blue);display:none;align-items:center;justify-content:space-between;gap:12px;}
+.readonly-banner button{font-size:11px;padding:3px 10px;color:var(--blue);border-color:rgba(68,136,255,0.4);font-family:var(--mono);}
+.error-msg{background:rgba(255,68,68,0.08);border:1px solid rgba(255,68,68,0.3);border-radius:6px;padding:8px 14px;font-size:13px;color:#ff8888;display:none;}
+
+/* ── Analytics view ── */
+.analytics-view{display:none;flex-direction:column;gap:20px;}
+.analytics-view.visible{display:flex;}
+.analytics-header{padding-bottom:18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.analytics-title{font-family:var(--mono);font-size:13px;letter-spacing:0.08em;color:var(--amber);text-transform:uppercase;}
+.analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;}
+.a-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+.a-card-val{font-family:var(--mono);font-size:22px;font-weight:500;color:var(--text);margin-bottom:3px;}
+.a-card-lbl{font-size:11px;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase;}
+.a-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px;}
+.a-section-title{font-family:var(--mono);font-size:10px;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+.a-topic-list{display:flex;flex-wrap:wrap;gap:6px;}
+.a-topic{font-size:12px;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text);font-family:var(--mono);}
+.a-topic.big{background:rgba(0,255,136,0.1);border-color:rgba(0,255,136,0.25);color:var(--accent);}
+.a-topic.medium{background:rgba(68,136,255,0.1);border-color:rgba(68,136,255,0.25);color:var(--blue);}
+.a-call-timeline{display:flex;flex-direction:column;gap:8px;}
+.a-call-row{display:grid;grid-template-columns:90px 1fr 60px;gap:10px;align-items:center;font-size:12px;}
+.a-call-date{font-family:var(--mono);color:var(--muted);}
+.a-call-name{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+.a-call-name:hover{color:var(--accent);}
+.a-call-words{font-family:var(--mono);color:var(--muted);text-align:right;}
+.a-empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:13px;line-height:1.8;}
+
+/* View mode */
+.view-mode .key-section,.view-mode .controls,.view-mode .viz-wrap{display:none!important;}
+.recorder-view{display:flex;flex-direction:column;gap:18px;flex:1;}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-title">Historique des appels</div>
+    <div class="sidebar-btns">
+      <button class="sidebar-new" onclick="newSession()">+ Nouveau</button>
+      <button class="sidebar-analytics-btn" id="btnAnalytics" onclick="toggleAnalytics()">📊 Stats</button>
+    </div>
+  </div>
+  <div class="history-list" id="historyList">
+    <div class="history-empty">Aucun appel enregistré.<br>Lance ta première transcription.</div>
+  </div>
+  <div class="sidebar-footer">
+    <span id="storageInfo">0 appels</span>
+    <button onclick="clearAllHistory()">Tout effacer</button>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+<div class="container" id="mainContainer">
+
+  <div class="header">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      <span class="logo-text">VoiceTranscript</span>
+      <span class="logo-badge">AssemblyAI</span>
+    </div>
+    <div class="header-right">
+      <input type="text" class="session-name-input" id="sessionNameInput" placeholder="Nom de l'appel…" maxlength="50"/>
+      <div class="status-chip" id="statusChip">VEILLE</div>
+    </div>
+  </div>
+
+  <!-- Analytics view -->
+  <div class="analytics-view" id="analyticsView">
+    <div class="analytics-header">
+      <span class="analytics-title">📊 Vue globale — tous les appels</span>
+      <button onclick="generateAnalytics()" style="font-family:var(--mono);font-size:11px;padding:4px 12px;">↻ Rafraîchir</button>
+    </div>
+    <div id="analyticsContent"><div class="a-empty">Lance une analyse pour voir les statistiques globales.</div></div>
+  </div>
+
+  <!-- Recorder view -->
+  <div class="recorder-view" id="recorderView">
+
+    <div class="key-section">
+      <div class="key-section-inner">
+        <div class="key-field">
+          <div class="key-label">Clé API AssemblyAI</div>
+          <div class="key-row">
+            <input type="password" class="key-input" id="apiKey" placeholder="AssemblyAI API key…" autocomplete="off"/>
+            <button onclick="validateKey()">Valider</button>
+          </div>
+          <div class="key-hint" style="margin-top:5px;">Gratuit sur <a href="https://www.assemblyai.com/dashboard" target="_blank">assemblyai.com/dashboard</a></div>
+        </div>
+        <div class="key-field">
+          <div class="key-label">Clé API Claude (résumés)</div>
+          <div class="key-row">
+            <input type="password" class="claude-key-input" id="claudeKey" placeholder="Anthropic API key…" autocomplete="off"/>
+            <button onclick="validateClaudeKey()">Valider</button>
+          </div>
+          <div class="key-hint" style="margin-top:5px;">Crédits API sur <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="readonly-banner" id="readonlyBanner">
+      <span>📂 Consultation d'un appel archivé — lecture seule</span>
+      <button onclick="newSession()">+ Nouvel appel</button>
+    </div>
+
+    <div class="controls">
+      <button class="btn-primary" id="btnStart" onclick="startRecording()" disabled>▶ Démarrer</button>
+      <button class="btn-stop" id="btnStop" onclick="stopRecording()" disabled>■ Arrêter</button>
+      <select id="langSelect">
+        <option value="fr">Français</option>
+        <option value="en">English</option>
+        <option value="es">Español</option>
+        <option value="de">Deutsch</option>
+        <option value="it">Italiano</option>
+        <option value="pt">Português</option>
+      </select>
+      <div class="timer" id="timer"></div>
+    </div>
+
+    <div class="viz-wrap">
+      <div class="viz-idle" id="vizIdle">— en attente du micro —</div>
+      <canvas id="viz"></canvas>
+    </div>
+
+    <div class="panels" id="panels">
+      <!-- Transcript -->
+      <div class="transcript-wrap">
+        <div class="transcript-header">
+          <span class="transcript-label" id="transcriptLabel">Transcription</span>
+          <div class="transcript-actions">
+            <button onclick="copyAll()">Copier</button>
+            <button onclick="exportTxt()">↓ .txt</button>
+            <button onclick="clearCurrent()">Effacer</button>
+          </div>
+        </div>
+        <div class="transcript-body" id="transcriptBody">
+          <div class="empty"><div class="empty-icon">🎙</div><p>Valide tes clés API puis appuie sur Démarrer.<br><br>La transcription apparaît ici en temps réel.</p></div>
+        </div>
+        <div class="interim-wrap" id="interimWrap">
+          <div class="interim-text" id="interimText"><span class="interim-cursor"></span></div>
+        </div>
+        <div class="stats" id="statsBar" style="display:none">
+          <div class="stat"><div class="stat-val" id="statWords">0</div><div class="stat-lbl">Mots</div></div>
+          <div class="stat"><div class="stat-val" id="statLines">0</div><div class="stat-lbl">Lignes</div></div>
+          <div class="stat"><div class="stat-val" id="statSpeakers">0</div><div class="stat-lbl">Interv.</div></div>
+          <div class="stat"><div class="stat-val" id="statDuration">—</div><div class="stat-lbl">Durée</div></div>
+        </div>
+      </div>
+
+      <!-- Summary panel -->
+      <div class="summary-panel" id="summaryPanel" style="display:none">
+        <div class="summary-header">
+          <span class="summary-label">✦ Résumé Claude</span>
+          <div class="summary-actions">
+            <button onclick="rerunSummary()" id="btnRerunSummary" style="display:none">↻ Relancer</button>
+            <button onclick="copySummary()">Copier</button>
+          </div>
+        </div>
+        <div class="summary-body" id="summaryBody">
+          <div class="summary-empty"><div class="summary-empty-icon">✦</div><p>Le résumé apparaîtra<br>automatiquement après l'appel.</p></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /recorder-view -->
+
+</div>
+</div>
+
+<script>
+// ── State ──
+let ws=null,stream=null,audioCtx=null,analyser=null,scriptProcessor=null;
+let animFrame=null,timerInterval=null,startTime=null;
+let aaiKey='',claudeKey='',utterances=[],wordCount=0,speakerSet=new Set();
+let currentSessionId=null,isViewingHistory=false,sessionDuration='—';
+let showingAnalytics=false;
+// AssemblyAI streaming state
+let sessionOpened=false,pendingUtterances={};
+const LABELS=['A','B','C','D','E','F'];
+const STORE='vt_aai_history';
+const $=id=>document.getElementById(id);
+
+// ── Storage ──
+function loadHistory(){try{return JSON.parse(localStorage.getItem(STORE))||[];}catch{return[];}}
+function saveHistory(h){localStorage.setItem(STORE,JSON.stringify(h));}
+function upsertHistory(s){const h=loadHistory();const i=h.findIndex(x=>x.id===s.id);if(i>=0)h[i]=s;else h.unshift(s);saveHistory(h);renderSidebar();}
+function deleteFromHistory(id){saveHistory(loadHistory().filter(s=>s.id!==id));renderSidebar();}
+function clearAllHistory(){if(!confirm('Supprimer tout l\'historique ?'))return;localStorage.removeItem(STORE);renderSidebar();}
+
+function renderSidebar(){
+  const hist=loadHistory();
+  $('storageInfo').textContent=`${hist.length} appel${hist.length!==1?'s':''}`;
+  if(!hist.length){historyList.innerHTML='<div class="history-empty">Aucun appel enregistré.<br>Lance ta première transcription.</div>';return;}
+  historyList.innerHTML='';
+  hist.forEach(s=>{
+    const div=document.createElement('div');
+    div.className='history-item'+(s.id===currentSessionId?' active':'');
+    div.onclick=()=>viewSession(s.id);
+    const d=new Date(s.createdAt);
+    div.innerHTML=`
+      <div class="hi-date">${d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit'})} · ${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="hi-name">${s.name||'Appel sans titre'}</div>
+      <div class="hi-meta">
+        <span class="hi-badge">${s.wordCount||0} mots</span>
+        <span class="hi-badge">${s.duration||'—'}</span>
+        ${s.summary?'<span class="hi-badge has-summary">✦ résumé</span>':''}
+      </div>
+      <button class="hi-del" onclick="event.stopPropagation();deleteFromHistory('${s.id}')">✕</button>`;
+    historyList.appendChild(div);
+  });
+}
+const historyList=$('historyList');
+
+function viewSession(id){
+  if(ws)return;
+  const s=loadHistory().find(h=>h.id===id);if(!s)return;
+  currentSessionId=id;isViewingHistory=true;
+  utterances=s.utterances||[];wordCount=s.wordCount||0;
+  speakerSet=new Set(utterances.map(u=>u.speaker));
+  sessionDuration=s.duration||'—';
+  $('sessionNameInput').value=s.name||'';
+  $('mainContainer').classList.add('view-mode');
+  $('readonlyBanner').style.display='flex';
+  $('statsBar').style.display='flex';
+  $('statDuration').textContent=s.duration||'—';
+  $('transcriptLabel').textContent=s.name||'Appel archivé';
+  renderUtterances();updateStats();renderSidebar();
+  if(s.summary){showSummary(s.summary);}
+  else{$('summaryPanel').style.display='none';$('panels').classList.remove('with-summary');}
+  if(showingAnalytics)toggleAnalytics();
+}
+
+function newSession(){
+  if(ws)stopRecording();
+  currentSessionId=null;isViewingHistory=false;
+  utterances=[];wordCount=0;speakerSet.clear();sessionDuration='—';
+  $('sessionNameInput').value='';
+  $('mainContainer').classList.remove('view-mode');
+  $('readonlyBanner').style.display='none';
+  $('statsBar').style.display='none';
+  $('transcriptBody').innerHTML='<div class="empty"><div class="empty-icon">🎙</div><p>Valide tes clés API puis appuie sur Démarrer.<br><br>La transcription apparaît ici en temps réel.</p></div>';
+  $('transcriptLabel').textContent='Transcription';
+  $('summaryPanel').style.display='none';
+  $('panels').classList.remove('with-summary');
+  renderSidebar();
+  if(showingAnalytics)toggleAnalytics();
+}
+
+function autoName(){const d=new Date();return`Appel du ${d.toLocaleDateString('fr-FR',{day:'2-digit',month:'long'})} à ${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}`;}
+
+function saveCurrentSession(summary){
+  if(!utterances.length)return;
+  const id=currentSessionId||('s_'+Date.now());currentSessionId=id;
+  const existing=loadHistory().find(s=>s.id===id);
+  upsertHistory({id,name:$('sessionNameInput').value.trim()||autoName(),createdAt:existing?.createdAt||new Date().toISOString(),utterances:utterances.slice(),wordCount,speakerCount:speakerSet.size,duration:sessionDuration,lang:$('langSelect').value,summary:summary!==undefined?summary:(existing?.summary||null)});
+}
+
+// ── Keys ──
+function validateKey(){
+  const v=$('apiKey').value.trim();
+  if(v.length<10){showError('Clé AssemblyAI invalide.');return;}
+  aaiKey=v;$('apiKey').classList.add('valid');$('btnStart').disabled=false;hideError();
+}
+function validateClaudeKey(){
+  const v=$('claudeKey').value.trim();
+  if(v.length<10){showError('Clé Claude invalide.');return;}
+  claudeKey=v;$('claudeKey').classList.add('valid');hideError();
+}
+$('apiKey').addEventListener('keydown',e=>{if(e.key==='Enter')validateKey();});
+$('claudeKey').addEventListener('keydown',e=>{if(e.key==='Enter')validateClaudeKey();});
+function showError(m){$('errorMsg').textContent=m;$('errorMsg').style.display='block';}
+function hideError(){$('errorMsg').style.display='none';}
+
+// ── AssemblyAI Streaming ──
+// AssemblyAI streaming uses a 2-step protocol:
+// 1. Open WebSocket to wss://streaming.assemblyai.com/v3/ws
+// 2. Send audio as raw PCM (Int16, 16kHz, mono)
+// 3. Receive JSON messages with type: "Begin", "Turn", "Termination"
+// Diarization: speaker labels come in word-level data inside Turn messages
+
+async function startRecording(){
+  if(!aaiKey){showError('Valide d\'abord ta clé AssemblyAI.');return;}
+  if(isViewingHistory)newSession();
+  hideError();
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});}
+  catch{showError('Accès micro refusé.');return;}
+
+  const lang=$('langSelect').value;
+
+  // AssemblyAI Streaming v3 WebSocket
+  // Language mapping: AssemblyAI uses different codes
+  const langMap={fr:'fr',en:'en',es:'es',de:'de',it:'it',pt:'pt'};
+  const aaiLang=langMap[lang]||'fr';
+
+  $('statusChip').textContent='CONNEXION…';
+  $('statusChip').className='status-chip connecting';
+
+  // Build WebSocket URL with params
+  const params=new URLSearchParams({
+    sample_rate:'16000',
+    language_code:aaiLang,
+    encoding:'pcm_s16le',
+    speaker_diarization:'true',  // Enable diarization
+    end_utterance_silence_threshold:'700', // ms of silence to end utterance
+  });
+
+  ws=new WebSocket(`wss://streaming.assemblyai.com/v3/ws?${params}`);
+  ws.binaryType='arraybuffer';
+
+  ws.onopen=()=>{
+    // Send auth token as first message
+    ws.send(JSON.stringify({type:'Authenticate',token:aaiKey}));
+  };
+
+  sessionOpened=false;
+
+  ws.onmessage=ev=>{
+    let msg;
+    try{msg=JSON.parse(ev.data);}catch{return;}
+
+    switch(msg.type){
+      case 'SessionBegins':
+      case 'Begin':
+        sessionOpened=true;
+        $('statusChip').textContent='● EN DIRECT';
+        $('statusChip').className='status-chip live';
+        $('btnStart').disabled=true;$('btnStop').disabled=false;
+        startTimer();startViz();
+        $('transcriptBody').innerHTML='';$('statsBar').style.display='flex';
+        startAudioCapture();
+        break;
+
+      case 'Turn':
+        handleTurn(msg);
+        break;
+
+      case 'FinalTranscript':
+        // fallback for some API versions
+        if(msg.text&&msg.text.trim()){
+          processUtterance(msg.text,msg.words||[],true);
+          $('interimWrap').style.display='none';
+        }
+        break;
+
+      case 'PartialTranscript':
+        if(msg.text){
+          $('interimWrap').style.display='block';
+          $('interimText').innerHTML=msg.text+' <span class="interim-cursor"></span>';
+        }
+        break;
+
+      case 'Termination':
+        break;
+
+      case 'Error':
+        showError('Erreur AssemblyAI : '+(msg.error||msg.message||JSON.stringify(msg)));
+        stopRecording();
+        break;
+
+      default:
+        // Some versions send transcript directly
+        if(msg.text!==undefined&&msg.text!==null){
+          if(msg.message_type==='FinalTranscript'||msg.is_final){
+            if(msg.text.trim())processUtterance(msg.text,msg.words||[],true);
+            $('interimWrap').style.display='none';
+          } else if(msg.text){
+            $('interimWrap').style.display='block';
+            $('interimText').innerHTML=msg.text+' <span class="interim-cursor"></span>';
+          }
+        }
+        break;
+    }
+  };
+
+  ws.onerror=()=>{
+    showError('Connexion AssemblyAI échouée. Vérifie ta clé.');
+    stopRecording();
+  };
+
+  ws.onclose=(e)=>{
+    if(!$('btnStop').disabled)stopRecording();
+  };
+}
+
+function handleTurn(msg){
+  // AssemblyAI v3 Turn message structure:
+  // { type:"Turn", turn_is_formatted:bool, words:[{text,start,end,speaker}], transcript:"...", end_of_turn:bool }
+  const isFinal=msg.turn_is_formatted||msg.end_of_turn;
+  const text=msg.transcript||msg.text||'';
+
+  if(!text.trim())return;
+
+  if(isFinal){
+    $('interimWrap').style.display='none';
+    processUtterance(text,msg.words||[],true);
+  } else {
+    $('interimWrap').style.display='block';
+    $('interimText').innerHTML=text+' <span class="interim-cursor"></span>';
+  }
+}
+
+function startAudioCapture(){
+  const ac=new AudioContext({sampleRate:16000});audioCtx=ac;
+  const src=ac.createMediaStreamSource(stream);
+  scriptProcessor=ac.createScriptProcessor(4096,1,1);
+  src.connect(scriptProcessor);scriptProcessor.connect(ac.destination);
+  scriptProcessor.onaudioprocess=e=>{
+    if(ws&&ws.readyState===WebSocket.OPEN&&sessionOpened){
+      const inp=e.inputBuffer.getChannelData(0);
+      const pcm=new Int16Array(inp.length);
+      for(let i=0;i<inp.length;i++)pcm[i]=Math.max(-32768,Math.min(32767,inp[i]*32768));
+      ws.send(pcm.buffer);
+    }
+  };
+}
+
+// ── Speaker detection from AssemblyAI words ──
+function getSpeakerFromWords(words){
+  if(!words||!words.length)return 0;
+  // AssemblyAI returns speaker as string "A","B",... or number
+  const raw=words[0].speaker;
+  if(raw===undefined||raw===null)return 0;
+  if(typeof raw==='number')return raw;
+  if(typeof raw==='string'){
+    // "A"->0, "B"->1, etc.
+    const code=raw.toUpperCase().charCodeAt(0);
+    if(code>=65&&code<=90)return code-65;
+    const n=parseInt(raw);
+    return isNaN(n)?0:n;
+  }
+  return 0;
+}
+
+function processUtterance(transcript,words,isFinal){
+  const sp=getSpeakerFromWords(words);
+  speakerSet.add(sp);
+  const t=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const last=utterances[utterances.length-1];
+  if(last&&last.speaker===sp&&(Date.now()-last.ts)<3000){
+    last.text+=' '+transcript;last.ts=Date.now();
+  } else {
+    utterances.push({speaker:sp,text:transcript,time:t,ts:Date.now()});
+  }
+  wordCount+=transcript.split(/\s+/).filter(Boolean).length;
+  renderUtterances();updateStats();
+  if(utterances.length%5===0)saveCurrentSession();
+}
+
+function renderUtterances(){
+  $('transcriptBody').innerHTML='';
+  utterances.forEach(u=>{
+    const idx=u.speaker%4,label=LABELS[u.speaker]||String(u.speaker+1);
+    const div=document.createElement('div');div.className='utterance';
+    div.innerHTML=`<div class="speaker-avatar sp-${idx}">${label}</div><div class="utt-content"><div class="utt-meta"><span class="utt-speaker sp-name-${idx}">Intervenant ${label}</span><span class="utt-time">${u.time}</span></div><div class="utt-text">${u.text}</div></div>`;
+    $('transcriptBody').appendChild(div);
+  });
+  $('transcriptBody').scrollTop=$('transcriptBody').scrollHeight;
+}
+
+function updateStats(){
+  $('statWords').textContent=wordCount;
+  $('statLines').textContent=utterances.length;
+  $('statSpeakers').textContent=speakerSet.size;
+}
+
+async function stopRecording(){
+  // Signal end of stream to AssemblyAI
+  if(ws&&ws.readyState===WebSocket.OPEN){
+    try{ws.send(JSON.stringify({type:'Terminate'}));}catch(e){}
+    setTimeout(()=>{try{ws.close();}catch(e){}ws=null;},500);
+  } else {
+    if(ws){try{ws.close();}catch(e){}ws=null;}
+  }
+  if(scriptProcessor){try{scriptProcessor.disconnect();}catch(e){}scriptProcessor=null;}
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  if(audioCtx){try{audioCtx.close();}catch(e){}audioCtx=null;}
+  stopTimer();stopViz();sessionOpened=false;
+  $('statusChip').textContent='ARRÊTÉ';$('statusChip').className='status-chip';
+  $('btnStart').disabled=false;$('btnStop').disabled=true;
+  $('interimWrap').style.display='none';
+  saveCurrentSession();
+  if(utterances.length>0)await runSummary();
+}
+
+// ── Timer ──
+function startTimer(){
+  startTime=Date.now();
+  timerInterval=setInterval(()=>{
+    const s=Math.floor((Date.now()-startTime)/1000),m=Math.floor(s/60),sec=s%60;
+    const str=`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    $('timer').textContent=str;sessionDuration=str;$('statDuration').textContent=str;
+  },1000);
+}
+function stopTimer(){clearInterval(timerInterval);$('timer').textContent='';}
+
+// ── Viz ──
+function startViz(){
+  if(!stream)return;
+  const ac=new AudioContext();analyser=ac.createAnalyser();analyser.fftSize=256;
+  ac.createMediaStreamSource(stream).connect(analyser);
+  $('viz').style.display='block';$('vizIdle').style.display='none';
+  const ctx=$('viz').getContext('2d'),buf=new Uint8Array(analyser.frequencyBinCount);
+  function draw(){
+    animFrame=requestAnimationFrame(draw);analyser.getByteFrequencyData(buf);
+    const w=$('viz').offsetWidth,h=$('viz').offsetHeight;
+    $('viz').width=w;$('viz').height=h;ctx.clearRect(0,0,w,h);
+    const bw=w/buf.length*2.5;let x=0;
+    for(let i=0;i<buf.length;i++){const bh=(buf[i]/255)*h*0.85;ctx.fillStyle=`rgba(0,255,136,${0.4+(buf[i]/255)*0.6})`;ctx.fillRect(x,h-bh,bw-1,bh);x+=bw+1;}
+  }draw();
+}
+function stopViz(){if(animFrame)cancelAnimationFrame(animFrame);$('viz').style.display='none';$('vizIdle').style.display='flex';}
+
+// ── Claude Summary ──
+async function runSummary(){
+  if(!claudeKey){$('summaryPanel').style.display='none';$('panels').classList.remove('with-summary');return;}
+  if(!utterances.length)return;
+  $('panels').classList.add('with-summary');
+  $('summaryPanel').style.display='flex';
+  $('btnRerunSummary').style.display='none';
+  $('summaryBody').innerHTML=`<div class="summary-loading"><div class="summary-loading-dots"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><p>Claude analyse l'appel…</p></div>`;
+  const transcript=utterances.map(u=>`[Intervenant ${LABELS[u.speaker]||u.speaker}]: ${u.text}`).join('\n');
+  const prompt=`Voici la transcription d'un appel avec ${speakerSet.size} intervenant(s), durée ${sessionDuration}.\n\nTRANSCRIPTION:\n${transcript}\n\nGénère un résumé structuré en JSON avec exactement ces champs:\n{\n  "theme": "sujet principal en 1 phrase",\n  "points": ["point clé 1", "point clé 2", ...],\n  "decisions": ["décision 1", ...] ou [],\n  "actions": ["action à faire 1", ...] ou [],\n  "tone": "positif" | "neutre" | "tendu" | "formel",\n  "speakers": [{"label":"A","percent":60}, {"label":"B","percent":40}]\n}\nRéponds UNIQUEMENT avec le JSON, sans markdown ni texte autour.`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error?.message||'Erreur API');
+    const raw=data.content[0].text.replace(/```json|```/g,'').trim();
+    const summary=JSON.parse(raw);
+    showSummary(summary);
+    saveCurrentSession(summary);
+    $('btnRerunSummary').style.display='inline-block';
+  }catch(e){
+    $('summaryBody').innerHTML=`<div class="summary-error">Erreur lors du résumé : ${e.message}.<br>Vérifie ta clé Claude.</div>`;
+    $('btnRerunSummary').style.display='inline-block';
+  }
+}
+
+function rerunSummary(){runSummary();}
+
+function showSummary(s){
+  $('panels').classList.add('with-summary');
+  $('summaryPanel').style.display='flex';
+  $('btnRerunSummary').style.display='inline-block';
+  const toneClass='tone-'+(s.tone||'neutre').toLowerCase();
+  const pointsHtml=s.points?.map(p=>`<div class="s-item"><div class="s-bullet s-bullet-blue"></div><div>${p}</div></div>`).join('')||'';
+  const decisionsHtml=s.decisions?.length?s.decisions.map(d=>`<div class="s-item"><div class="s-bullet s-bullet-amber"></div><div>${d}</div></div>`).join(''):'<div style="font-size:12px;color:var(--muted);">Aucune décision identifiée.</div>';
+  const actionsHtml=s.actions?.length?s.actions.map(a=>`<div class="s-item"><div class="s-bullet s-bullet-pink"></div><div>${a}</div></div>`).join(''):'<div style="font-size:12px;color:var(--muted);">Aucune action identifiée.</div>';
+  const spColors=['var(--accent)','var(--blue)','var(--amber)','var(--pink)'];
+  const speakersHtml=s.speakers?.map((sp,i)=>`<div class="speaker-bar"><div class="speaker-bar-label"><span style="font-family:var(--mono);font-size:11px;color:${spColors[i%4]}">Intervenant ${sp.label}</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${sp.percent}%</span></div><div class="speaker-bar-track"><div class="speaker-bar-fill" style="width:${sp.percent}%;background:${spColors[i%4]};"></div></div></div>`).join('')||'';
+  $('summaryBody').innerHTML=`
+    <div class="s-section"><div class="s-section-title s-title-theme">Thème principal</div><div class="s-theme">${s.theme||'—'}</div></div>
+    <div class="s-section"><div class="s-section-title s-title-points">Points clés</div><div class="s-list">${pointsHtml}</div></div>
+    <div class="s-section"><div class="s-section-title s-title-decisions">Décisions</div><div class="s-list">${decisionsHtml}</div></div>
+    <div class="s-section"><div class="s-section-title s-title-actions">Actions à suivre</div><div class="s-list">${actionsHtml}</div></div>
+    <div class="s-section"><div class="s-section-title s-title-tone">Tonalité</div><span class="tone-badge ${toneClass}">${s.tone||'neutre'}</span></div>
+    ${speakersHtml?`<div class="s-section"><div class="s-section-title s-title-speakers">Prise de parole</div>${speakersHtml}</div>`:''}`;
+}
+
+function copySummary(){
+  navigator.clipboard.writeText($('summaryBody').innerText).catch(()=>{});
+}
+
+// ── Analytics ──
+function toggleAnalytics(){
+  showingAnalytics=!showingAnalytics;
+  $('analyticsView').style.display=showingAnalytics?'flex':'none';
+  $('recorderView').style.display=showingAnalytics?'none':'flex';
+  $('btnAnalytics').classList.toggle('active',showingAnalytics);
+  if(showingAnalytics)generateAnalytics();
+}
+
+async function generateAnalytics(){
+  const hist=loadHistory();
+  if(!hist.length){$('analyticsContent').innerHTML='<div class="a-empty">Aucun appel enregistré pour l\'instant.</div>';return;}
+  const totalWords=hist.reduce((s,c)=>s+(c.wordCount||0),0);
+  const withSummary=hist.filter(s=>s.summary).length;
+  const tones=hist.filter(s=>s.summary?.tone).reduce((acc,s)=>{acc[s.summary.tone]=(acc[s.summary.tone]||0)+1;return acc;},{});
+  const tonesHtml=Object.entries(tones).filter(([,v])=>v>0).map(([k,v])=>{
+    const cls={positif:'var(--accent)',neutre:'var(--muted)',tendu:'var(--red)',formel:'var(--blue)'}[k]||'var(--muted)';
+    return`<span class="a-topic" style="border-color:${cls};color:${cls};background:transparent;">${k} (${v})</span>`;
+  }).join('');
+  const timelineHtml=hist.slice(0,8).map(s=>`<div class="a-call-row"><span class="a-call-date">${new Date(s.createdAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span><span class="a-call-name" onclick="viewSession('${s.id}');toggleAnalytics();">${s.name||'Sans titre'}</span><span class="a-call-words">${s.wordCount||0}m</span></div>`).join('');
+  $('analyticsContent').innerHTML=`
+    <div class="analytics-grid">
+      <div class="a-card"><div class="a-card-val">${hist.length}</div><div class="a-card-lbl">Appels total</div></div>
+      <div class="a-card"><div class="a-card-val">${totalWords.toLocaleString('fr-FR')}</div><div class="a-card-lbl">Mots transcrits</div></div>
+      <div class="a-card"><div class="a-card-val">${withSummary}</div><div class="a-card-lbl">Résumés Claude</div></div>
+      <div class="a-card"><div class="a-card-val">AssemblyAI</div><div class="a-card-lbl">Moteur</div></div>
+    </div>
+    ${tonesHtml?`<div class="a-section"><div class="a-section-title">Tonalités</div><div class="a-topic-list">${tonesHtml}</div></div>`:''}
+    <div class="a-section"><div class="a-section-title">Derniers appels</div><div class="a-call-timeline">${timelineHtml}</div></div>`;
+}
+
+// ── Export ──
+function copyAll(){navigator.clipboard.writeText(utterances.map(u=>`[${LABELS[u.speaker]||u.speaker}] ${u.time}\n${u.text}`).join('\n\n')).catch(()=>{});}
+function exportTxt(){
+  const name=$('sessionNameInput').value.trim()||autoName();
+  const txt=`${name}\nExporté le ${new Date().toLocaleString('fr-FR')}\n${'─'.repeat(40)}\n\n`+utterances.map(u=>`[Intervenant ${LABELS[u.speaker]||u.speaker}] ${u.time}\n${u.text}`).join('\n\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));a.download=`transcription_${new Date().toISOString().slice(0,10)}.txt`;a.click();
+}
+function clearCurrent(){
+  if(isViewingHistory)return;
+  utterances=[];wordCount=0;speakerSet.clear();
+  $('transcriptBody').innerHTML='<div class="empty"><div class="empty-icon">🎙</div><p>Transcription effacée.</p></div>';
+  $('statsBar').style.display='none';
+  $('summaryPanel').style.display='none';$('panels').classList.remove('with-summary');
+}
+
+renderSidebar();
+</script>
+</body>
+</html>
