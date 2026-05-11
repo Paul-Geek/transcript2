@@ -482,21 +482,24 @@ async function startRecording(){
   $('statusChip').textContent='CONNEXION…';
   $('statusChip').className='status-chip connecting';
 
-  // Build WebSocket URL with params
+  // Auth via token query param — seule methode compatible navigateur (pas de custom headers WS natif)
+  const isMultilingual=(aaiLang!=='en');
   const params=new URLSearchParams({
-    sample_rate:'16000',
-    language_code:aaiLang,
-    encoding:'pcm_s16le',
-    speaker_diarization:'true',  // Enable diarization
-    end_utterance_silence_threshold:'700', // ms of silence to end utterance
+    token: aaiKey,
+    sample_rate: '16000',
+    encoding: 'pcm_s16le',
+    speech_model: isMultilingual ? 'universal-streaming-multilingual' : 'universal-streaming-english',
+    language_code: aaiLang,
+    speaker_diarization: 'true',
+    end_utterance_silence_threshold: '700',
+    format_turns: 'true',
   });
 
   ws=new WebSocket(`wss://streaming.assemblyai.com/v3/ws?${params}`);
   ws.binaryType='arraybuffer';
 
   ws.onopen=()=>{
-    // Send auth token as first message
-    ws.send(JSON.stringify({type:'Authenticate',token:aaiKey}));
+    // Connexion OK - la session demarre automatiquement via les params URL
   };
 
   sessionOpened=false;
